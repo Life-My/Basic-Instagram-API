@@ -6,8 +6,8 @@ import logging
 import json
 import re
 
-class _Session:
 
+class _Session:
     def session(username,password):
         session = requests.Session() 
         url="https://www.instagram.com/"
@@ -39,11 +39,11 @@ class _Session:
 
         return session
 
-class _Download():
 
+
+class _Download():
     def __init__(self,session):
         self.session = session
-        
     def download(self, url:str,filename:str,path:str)->None:
         r=self.session.get(url)
         if r.status_code != 200:
@@ -64,10 +64,10 @@ class _Download():
         with open(filename, 'wb') as imageFile:
             imageFile.write(r.content)
 
-    def downloadReels(self,obj,userid):
+    def image_versions2(self,obj,userid,type:str):
         for o in obj:
             filename=f'{str(o.get("pk"))}-{o.get("width")}x{o.get("height")}'
-            path=str(userid)+"/reels/"
+            path=str(userid)+"/"+type+"/"
             self.download(o.get("url"),filename,path)
         return True
     
@@ -79,15 +79,14 @@ class _Download():
         return True
 
 class _Print:
-
     def printUserInfo(basicInfo):
         print("+","-"*100,"+")
         for k, v in basicInfo.items():
             print(k,": ",v)
         print("+","-"*100,"+")
 
-class Instagram():
 
+class Instagram():
     def __init__(self,username:str,password:str)->None:
         self.userId=None
         self.username=None
@@ -95,6 +94,8 @@ class Instagram():
         self.graphUrl="https://www.instagram.com/graphql/query/"
         self.reels=list()
         self.posts=list()
+        self.highligts=list()
+        self.stories=list()
         self.session=_Session.session(username,password)
         self.d=_Download(self.session)
 
@@ -146,7 +147,7 @@ class Instagram():
     def downloadReels(self, obj=None):
         if obj is None:
             obj=self.getReels()
-        self.d.downloadReels(obj,self.getUserId())
+        self.d.image_versions2(obj,self.getUserId(),"reels")
     
     def getPosts(self,cursor:str=None):
         hash="69cba40317214236af40e7efa697781d"
@@ -179,6 +180,71 @@ class Instagram():
             obj=self.getPosts()
         self.d.downloadPosts(obj,self.getUserId())
 
+    def getHighlights(self)->None:
+        hash="d4d88dc1500312af6f937f7b804c68c3"
+        variables= {
+            "user_id":self.getUserId(),
+            "include_chaining":True,
+            "include_reel":True,
+            "include_suggested_users":False,
+            "include_logged_out_extras":False,
+            "include_highlight_reels":True,
+            "include_live_status":True
+        }
+        variables=json.dumps(variables)
+        r=self.session.get(self.graphUrl,params={
+            "query_hash":hash,
+            "variables":variables
+        })
+        edges=r.json().get("data").get("user").get("edge_highlight_reels").get("edges")
+        ids=list()
+        for edge in edges:
+            ids.append(f'highlight:{edge.get("node").get("id")}')
+        params="?"
+        params+='&'.join(["reel_ids="+id for id in ids]).strip("&")
+
+        r=self.session.get(self.apiUrl+"feed/reels_media/"+params)
+        for id in ids:
+            items=r.json().get("reels").get(id).get("items")
+            for item in items:
+                candidates=item.get("image_versions2").get("candidates")
+                videos=item.get("video_versions")
+                for candidate in candidates:
+                    candidate.update({"pk":item.get("pk")})
+                    self.highligts.append(candidate)
+                if videos:
+                    for video in videos:
+                        video.update({"pk":item.get("pk")})
+                        self.highligts.append(video)
+        
+        return self.highligts
+            
+    def downloadHighlights(self,obj=None)->None:
+        if obj is None:
+            obj=self.getHighlights()
+        self.d.image_versions2(obj,self.getUserId(),"highligts")
+
+    def getStories(self)->None:
+        r=self.session.get(self.apiUrl+"feed/reels_media/",params={"reel_ids":self.getUserId()})
+        items=r.json().get("reels").get(self.getUserId()).get("items")
+        for item in items:
+            candidates=item.get("image_versions2").get("candidates")
+            videos=item.get("video_versions")
+            for candidate in candidates:
+                candidate.update({"pk":item.get("pk")})
+                self.stories.append(candidate)
+            if videos:
+                for video in videos:
+                    video.update({"pk":item.get("pk")})
+                    self.stories.append(video)
+        
+        return self.stories
+
+    def downloadStories(self,obj=None)->None:
+        if obj is None:
+            obj=self.getStories()
+        self.d.image_versions2(obj,self.getUserId(),"stories")
+
     def getUserId(self):
         if self.userId is None:
             logging.error("UserId is required. Use setUserId function")
@@ -202,8 +268,10 @@ class Instagram():
             "Post count":user.get("edge_owner_to_timeline_media").get("count")
         }
         _Print.printUserInfo(basicInfo)
-
-        self.posts=list()
+        
         self.reels=list()
+        self.posts=list()
+        self.highligts=list()
+        self.stories=list()
         self.userId=user.get("id")
         self.username=username
