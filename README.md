@@ -1,23 +1,57 @@
-# Basic-Instagram-API Usage
+# Usage
 
 ```python
 from Instagram import Instagram
 
 i=Instagram("<username>","<password>")
 
-i.setUser("eminem")
-i.downloadPosts()
-i.downloadReels()
+def dumpUser(user):
+    i.setUserName(user)
+    
+    i.downloadHighlights()
+    i.downloadPosts()
+    i.downloadReelsMedia()
+    i.downloadStories()
 
-#### Or
-
-i.setUser("snoopdogg")
-posts=i.getPosts()
-for post in posts:
-  print(post)
-
-i.downloadPosts(posts)
+dumpUser("<user_name>")
 
 ```
+
+# Methods
+```
+getReelsMedia()->list
+
+getReel(max_idstr=None)->requests.Response
+
+downloadReelsMedia(obj=None)
+
+getPostsMedia()->list
+
+getPosts(cursorstr=None)->requests.Response
+
+downloadPosts(obj=None)
+
+getHighlightsMedia()-> list
+
+getHighlightIds()->requests.Response
+
+getHighligts()->requests.Response
+
+downloadHighlights(obj=None)
+
+getStoriesMedia()->list
+
+getStories()->requests.Response
+
+downloadStories(obj=None)
+
+getFollowers()->list
+
+getFollowings()->list
+
+getUserId()->str
+
+setUserName(usernamestr)->None
+``` 
 
 It will download files in `<user_id>/(posts|reels)/<type>/<id>-<width>x<height>.<ext>` format
